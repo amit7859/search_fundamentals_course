@@ -95,6 +95,9 @@ def query():
 
     #### Step 4.b.ii
     response = None   # TODO: Replace me with an appropriate call to OpenSearch
+    response = opensearch.search(body=query_obj, index='bbuy_products')
+
+
     # Postprocess results here if you so desire
 
     #print(response)
@@ -105,17 +108,200 @@ def query():
     else:
         redirect(url_for("index"))
 
+# The following is the create_query method from Level 2 of the Week 1 project. 
+def create_query(user_query, filters, sort="_score", sortDir="desc"):
+    print("Query: {} Filters: {} Sort: {}".format(user_query, filters, sort))
+    query_obj = {
+        'size': 10,
+        'query': {
+            "function_score": {
+                "query": { 
+                    "bool": { 
+                        "must": [ 
+                            {
+                                "query_string" : {
+                                    # "fields": ["name^1000", "shortDescription^50", "longDescription^10", "department"],
+                                    "fields": ["name^1000", "shortDescription", "longDescription", "manufacturer^500"],
+                                    "query": user_query,
+                                    "phrase_slop": 3
+                                }
+                            }
+                        ],
+                        "filter": filters
+                    }
+                },
+                "functions": [
+                    {
+                        "field_value_factor": {
+                            "field": "salesRankShortTerm",
+                            "modifier": "reciprocal",
+                            "missing": 100000000
+                        }
+                    },
+                    {
+                        "field_value_factor": {
+                            "field": "salesRankMediumTerm",
+                            "modifier": "reciprocal",
+                            "missing": 100000000
+                        }
+                    },
+                    {
+                        "field_value_factor": {
+                            "field": "salesRankLongTerm",
+                            "modifier": "reciprocal",
+                            "missing": 100000000
+                        }
+                    },
+                    {
+                        "field_value_factor": {
+                            "field": "regularPrice",
+                            "missing": 1,
+                            "factor" : 5
+                        }
+                    }
+                ],
+                "score_mode": "avg",
+                "boost_mode": "replace"
+            }
+        },
+        "highlight": {
+            "fields": {
+                "name": {},
+                "shortDescription": {}, 
+                "longDescription": {}
+            }
+        },
+        "aggs": {
+            #### Step 4.b.i: create the appropriate query and aggregations here
 
+            "missing_images": {
+                "missing": { "field": "image.keyword" }
+            },
+            "department": {
+                "terms": {
+                    "field": "department.keyword",
+                    "size": 10,
+                    "missing": "N/A",
+                    "min_doc_count": 0
+                }
+            },
+            "regularPrice": {
+                "range": {
+                    "field": "regularPrice",
+                    "ranges": [
+                        {
+                            "to": 100
+                        },
+                        {
+                            "from": 100,
+                            "to": 200
+                        },
+                        {
+                            "from": 200,
+                            "to": 300
+                        },
+                        {
+                            "from": 300,
+                            "to": 400
+                        },
+                        {
+                            "from": 400,
+                            "to": 500
+                        },
+                        {
+                            "from": 500,
+                        }
+                    ]
+                }
+            }
+        },
+        "sort": [
+            {
+                sort: {
+                    "order": sortDir
+                }
+            }
+        ]
+    }
+    return query_obj
+
+
+# The following is the create_query method from Level 1 of the Week 1 project. 
 def create_query(user_query, filters, sort="_score", sortDir="desc"):
     print("Query: {} Filters: {} Sort: {}".format(user_query, filters, sort))
     query_obj = {
         'size': 10,
         "query": {
-            "match_all": {} # Replace me with a query that both searches and filters
+            "bool": { 
+                "must": [ 
+                    {
+                        "query_string" : {
+                            "fields": [ "name", "shortDescription", "longDescription"],
+                            "query": user_query,
+                            "phrase_slop": 3
+                        }
+                    }
+                ],
+                "filter": filters
+            },
+        },
+        "highlight": {
+            "fields": {
+                "name": {},
+                "shortDescription": {}, 
+                "longDescription": {}
+            }
         },
         "aggs": {
             #### Step 4.b.i: create the appropriate query and aggregations here
 
-        }
+            "missing_images": {
+                "missing": { "field": "image.keyword" }
+            },
+            "department": {
+                "terms": {
+                    "field": "department.keyword",
+                    "size": 10,
+                    "missing": "N/A",
+                    "min_doc_count": 0
+                }
+            },
+            "regularPrice": {
+                "range": {
+                    "field": "regularPrice",
+                    "ranges": [
+                        {
+                            "to": 100
+                        },
+                        {
+                            "from": 100,
+                            "to": 200
+                        },
+                        {
+                            "from": 200,
+                            "to": 300
+                        },
+                        {
+                            "from": 300,
+                            "to": 400
+                        },
+                        {
+                            "from": 400,
+                            "to": 500
+                        },
+                        {
+                            "from": 500,
+                        }
+                    ]
+                }
+            }
+        },
+        "sort": [
+            {
+                sort: {
+                    "order": sortDir
+                }
+            }
+        ]
     }
     return query_obj
